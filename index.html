@@ -12082,7 +12082,7 @@ function render(){
   document.querySelectorAll('.bnav [data-nav]').forEach(b=>b.classList.toggle('on',b.dataset.nav===tabOf(st.view)));
   const ban=st.pending&&st.items[st.pending]?`<div class="banner"><span>Перемещаю «${esc(st.items[st.pending].name)}»: отсканируй QR нового ящика</span><button class="btn" data-cancel>Отмена</button></div>`:'';
   const V={home,box,item,form,list,log,labels,excelTools,matches,countView,placement,stockForm,returnView}[st.view]||home;
-  $('#app').innerHTML=(st.view==='home'?'<p class="note" role="status">'+esc(st.mode)+'</p>':'')+ban+V(st.arg);
+  $('#app').innerHTML=(st.view==='home'&&st.mode!=='Только на этом устройстве'?'<p class="note" role="status">'+esc(st.mode)+'</p>':'')+ban+V(st.arg);
   if(st.view==='excelTools')loadRule();
   if(st.view==='form')bindForm();
   if(st.view==='box'){
@@ -12311,7 +12311,7 @@ function labels(){return `<h1>Этикетки</h1>${queueCard()}<div class="sec
   <div class="search"><input id="label-query" type="search" aria-label="Поиск этикеток" placeholder="Поиск по P/N или коду" value="${esc(gallery.query)}"></div>
   ${gallery.kind==='bags'?`<label class="check"><input type="checkbox" id="only-new-labels" ${gallery.onlyNew?'checked':''}>Новые пакеты</label>`:''}
   <div id="label-results"></div>
-  <p class="note">${esc(st.mode)}</p>`;}
+  ${st.mode!=='Только на этом устройстве'?'<p class="note">'+esc(st.mode)+'</p>':''}`;}
 let tileObserver;
 function refreshGallery(){
   tileObserver?.disconnect();
