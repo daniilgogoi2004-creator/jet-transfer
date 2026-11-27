@@ -12521,24 +12521,29 @@ async function openScanner(){
   if(!scanDialog.open)scanDialog.showModal();
   if(!navigator.mediaDevices?.getUserMedia){scanNote.textContent='Камера недоступна здесь. Открой приложение по HTTPS в браузере или введи код ниже.';return}
   try{
-    const stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:960}}});
+    const stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}}});
     if(session!==active){stream.getTracks().forEach(track=>track.stop());return}
     active.stream=stream;scanVideo.srcObject=stream;await scanVideo.play();if(session!==active)return;
     $('.jt-camera').classList.add('live');$('#jt-camera-state').textContent='● Камера активна';$('#jt-torch').disabled=!stream.getVideoTracks()[0]?.getCapabilities?.().torch;
     scanNote.textContent=st.pending?'Наведи камеру на QR нового ящика':'Наведи камеру на QR пакета или ящика';
+    try{const tr=stream.getVideoTracks()[0],cp=tr.getCapabilities?.()||{};if((cp.focusMode||[]).includes('continuous'))await tr.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(e){}
+    let bd=null;try{if('BarcodeDetector' in window&&(await BarcodeDetector.getSupportedFormats()).includes('qr_code'))bd=new BarcodeDetector({formats:['qr_code']})}catch(e){bd=null}
     const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});
-    let lastCode='',lastSeen=0;
+    let lastCode='',lastSeen=0,tick=0;
     async function frame(){
       if(session!==active)return;
       if(scanVideo.readyState>=2&&scanVideo.videoWidth){
-        const k=Math.min(1,960/Math.max(scanVideo.videoWidth,scanVideo.videoHeight));
-        const w=Math.round(scanVideo.videoWidth*k),h=Math.round(scanVideo.videoHeight*k);
-        if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h}
-        try{ctx.drawImage(scanVideo,0,0,w,h);const pixel=ctx.getImageData(0,0,w,h);
-          const result=jsQR(pixel.data,w,h,{inversionAttempts:'dontInvert'});if(result){const t=performance.now();if(result.data!==lastCode||t-lastSeen>750)await readScan(result.data);lastCode=result.data;lastSeen=t}
+        const vw=scanVideo.videoWidth,vh=scanVideo.videoHeight;tick++;
+        let data=null;
+        if(bd){try{const r=await bd.detect(scanVideo);if(r&&r[0])data=r[0].rawValue}catch(e){bd=null}}
+        try{if(!data){const full=tick%3===0,side=full?Math.max(vw,vh):Math.round(Math.min(vw,vh)*.8),sx=full?0:Math.round((vw-side)/2),sy=full?0:Math.round((vh-side)/2),sw=full?vw:side,sh=full?vh:side,k=Math.min(1,(full?960:720)/Math.max(sw,sh)),w=Math.round(sw*k),h=Math.round(sh*k);
+          if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h}
+          ctx.drawImage(scanVideo,sx,sy,sw,sh,0,0,w,h);const pixel=ctx.getImageData(0,0,w,h);
+          const result=jsQR(pixel.data,w,h,{inversionAttempts:tick%2?'attemptBoth':'dontInvert'});if(result)data=result.data}
+          if(data){const t=performance.now();if(data!==lastCode||t-lastSeen>750)await readScan(data);lastCode=data;lastSeen=t}
         }catch(err){stopCamera();scanNote.textContent='Не удалось прочитать кадр. Повтори запуск камеры или введи код.';return}
       }
-      if(session===active)active.timer=setTimeout(frame,150);
+      if(session===active)active.timer=setTimeout(frame,bd?90:110);
     }
     frame();
   }catch(err){
