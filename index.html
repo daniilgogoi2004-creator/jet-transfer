@@ -11946,7 +11946,7 @@ const everyBin=()=>Object.values(bins).sort((a,b)=>a.code.localeCompare(b.code))
 const place=b=>b.rack?`Стеллаж ${b.rack} · Полка ${b.shelf}`:'Вне стеллажа';
 // Номер ящика на полке: хранится в slot; у исходных 30 ящиков берётся из ключа «полка-ящик».
 const slotOf=b=>b.slot||(/^\d+-(\d+)$/.test(b.key)?Number(b.key.split('-')[1]):0);
-const addr=b=>b&&b.rack?`С${b.rack} П${b.shelf} Я${slotOf(b)}`:(b?b.code:'—');
+const addr=b=>b&&b.rack?`С${b.rack} П${b.shelf} Я${slotOf(b)}`:(b?(b.last?'без места (был '+b.last+')':'без места'):'—');
 const addrLong=b=>b&&b.rack?`Стеллаж ${b.rack} · Полка ${b.shelf} · Ящик ${slotOf(b)}`:(b?'Вне стеллажа · '+b.code:'—');
 const nextSlot=(r,s,skip)=>{const used=new Set(everyBin().filter(x=>x.rack===r&&x.shelf===s&&x.key!==skip).map(slotOf));let n=1;while(used.has(n))n++;return n};
 const locName=k=>bins[k]?addrLong(bins[k]):k?'—':'Без ящика';
@@ -12177,7 +12177,7 @@ async function applyRack(r,P,Ns,place){const N=Math.max(...Ns);
   await navigator.locks.request('jt-bins',async()=>{
     const layout={...initialBins(),...JSON.parse(localStorage.getItem('jt-bins')||'{}')};
     const mine=Object.values(layout).filter(b=>b.rack===r);
-    for(const b of mine){if(b.shelf>P||slotOf(b)>(Ns[b.shelf-1]||0)){if(used.has(b.key)){kept++;continue}layout[b.key]={...b,rack:0,shelf:0,slot:0};removed++}}
+    for(const b of mine){if(b.shelf>P||slotOf(b)>(Ns[b.shelf-1]||0)){if(used.has(b.key)){kept++;continue}layout[b.key]={...b,last:addr(b),rack:0,shelf:0,slot:0};removed++}}
     for(let p=1;p<=P;p++)for(let n=1;n<=Ns[p-1];n++){if(Object.values(layout).some(b=>b.rack===r&&b.shelf===p&&slotOf(b)===n))continue;const k='X'+fresh();layout[k]={key:k,code:'BX-'+k.slice(1),rack:r,shelf:p,slot:n};qbox.add(k);added++}
     localStorage.setItem('jt-bins',JSON.stringify(layout));bins=layout;
   });
@@ -12230,8 +12230,8 @@ function home(){
   <form class="search" id="sf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg><input id="sq" placeholder="Поиск по P/N или адресу" autocomplete="off" enterkeyhint="search"></form>
   <div class="row2"><button class="btn" data-new=""><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M3 9l5-5h8l5 5v11H3z M3 9h18 M12 4v9"/></svg>Принять пакет</button><button class="btn" data-count-start=""><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M3 5h18v4H3z M5 9v11h14V9"/></svg>${count?.key?'Продолжить ревизию':'Ревизия ящика'}</button></div>
   ${detached.length?`<details class="bin-tools"><summary>Ящики вне стеллажа (${detached.length})</summary>
-    <label class="search"><input type="search" id="detached-filter" placeholder="Найти по коду ящика" aria-label="Найти по коду ящика"></label>
-    <div id="detached-results">${detached.map(b=>{const n=counts.get(b.key)?.total||0;return `<button class="btn wide" data-box="${esc(b.key)}" data-bin-code="${esc(b.code)}">${esc(b.code)} · ${n} ${plural(n,'пакет','пакета','пакетов')}</button>`}).join('')}</div>
+    <label class="search"><input type="search" id="detached-filter" placeholder="Найти по прежнему адресу, например С1 П3" aria-label="Найти ящик"></label>
+    <div id="detached-results">${detached.map(b=>{const n=counts.get(b.key)?.total||0;return `<button class="btn wide" data-box="${esc(b.key)}" data-bin-code="${esc([b.code,b.last||''].join(' '))}">Ящик без места${b.last?' · был '+esc(b.last):''} · ${n} ${plural(n,'пакет','пакета','пакетов')}</button>`}).join('')}</div>
     <p id="detached-empty" hidden>Ящик с таким кодом не найден</p></details>`:''}
   </section><section class="home-racks">
   ${[...racks.keys()].sort((a,b)=>a-b).map(r=>{const dm=rackDims(r);return `<section class="home-rack"><h2>${actionIcon('M3 21l2-17h14l2 17 M5 9h14 M4 16h16')}<span class="rk-t">Стеллаж ${r}${rackMeta[r]?.place?`<em>${esc(rackMeta[r].place)}</em>`:''}</span><small>${dm.p} ${plural(dm.p,'полка','полки','полок')} · ${everyBin().filter(b=>b.rack===r).length} ящ.</small><button type="button" class="rk-gear" data-rack-edit="${r}" aria-label="Настроить стеллаж ${r}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button></h2>${rackEdit&&!rackEdit.isNew&&rackEdit.r===r?rackForm(r,false):''}${rack(r,racks.get(r),counts)}</section>`}).join('')}
@@ -12248,7 +12248,7 @@ function partThumb(name){
   const kind=[[/болт|\bbolt/i,'bolt'],[/шайб|washer/i,'washer'],[/гайк|гайка|\bnut/i,'nut']].find(([pattern])=>pattern.test(name||''));
   return kind ? '<span aria-hidden="true" class="part-thumb '+kind[1]+'"></span>' : '';
 }
-function card(i,showLoc){return `<button class="card" data-item="${esc(i.id)}">${partThumb(i.name)}<span class="ct"><b>${esc(i.pn||i.name)}</b><small>${esc(i.pn?i.name+' · '+i.code:i.code)}${showLoc?` · <span class="sq">${esc(locName(i.loc))}</span>`:''}</small></span><span class="q"><b>${esc(i.qty)} ${esc(i.unit||'шт')}.</b>${isLow(i)?'<small>На исходе</small>':''}</span><span class="go">${ARR}</span></button>`}
+function card(i,showLoc){return `<button class="card" data-item="${esc(i.id)}">${partThumb(i.name)}<span class="ct"><b>${esc(i.pn||i.name)}</b><small>${esc(i.pn?i.name+' · '+i.code:i.code)}${showLoc?` · <span class="sq">${esc(locName(i.loc))}</span>`:''}</small></span><span class="q"><b>${esc(i.qty)} ${esc(i.unit||'шт')}</b>${isLow(i)?'<small>На исходе</small>':''}</span><span class="go">${ARR}</span></button>`}
 function binTools(b,origin){
   const base=b||origin||{},suffix=b?'move':'create';
   return `<details class="bin-tools"><summary>${b?(b.rack?'Переместить ящик':'Вернуть на стеллаж'):(origin?'Добавить новый ящик':'Добавить ящик')}</summary>
@@ -12613,7 +12613,7 @@ function moveDone(item,from,to){
   const box='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="4.5" rx="1.2"/><path d="M5 9v9.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 12.5h4"/></svg>';
   const d=document.createElement('div');d.className='jt-done';d.setAttribute('role','dialog');d.setAttribute('aria-label','Перемещение выполнено');
   d.innerHTML='<div class="jd-card"><div class="jd-logo">'+($('.client')?.innerHTML||'')+'</div><div class="jd-ok"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><h2>Перемещение выполнено</h2><p class="jd-sub">Местоположение детали обновлено</p>'
-   +'<div class="jd-item"><span class="jd-pk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg></span><div><b>'+esc(item.pn||item.name)+'</b><small>'+esc(item.pn?item.name:item.code)+'</small></div><strong>'+esc(item.qty)+' '+esc(item.unit||'шт')+'.</strong></div>'
+   +'<div class="jd-item"><span class="jd-pk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg></span><div><b>'+esc(item.pn||item.name)+'</b><small>'+esc(item.pn?item.name:item.code)+'</small></div><strong>'+esc(item.qty)+' '+esc(item.unit||'шт')+'</strong></div>'
    +'<div class="jd-route"><div class="jd-row"><span class="jd-ic">'+box+'</span><div><small>Откуда</small><b>'+esc(A(from))+'</b><em>'+esc(L(from))+'</em></div></div><div class="jd-arrow">↓</div><div class="jd-row to"><span class="jd-ic">'+box+'</span><div><small>Куда</small><b>'+esc(A(to))+'</b><em>'+esc(L(to))+'</em></div><i class="jd-chk">✓</i></div></div>'
    +'<button type="button" class="btn wide jd-btn">Готово</button><button type="button" class="jd-undo">Отменить перемещение</button><p class="jd-foot">Операция успешно зарегистрирована</p></div>';
   const close=()=>{d.classList.add('out');setTimeout(()=>d.remove(),220)};
@@ -12750,7 +12750,7 @@ document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)r
   if('countStart' in d)return beginCount(d.countStart);
   if('countFinish' in d)return operation(finishCount);
   if(d.openScanner!==undefined)return openScanner();
-  if(d.detach)return saveBin({...bins[d.detach],rack:null,shelf:null});
+  if(d.detach)return saveBin({...bins[d.detach],last:addr(bins[d.detach]),rack:null,shelf:null});
   if(d.nav){st.pending=null;return go(d.nav)}
   if(d.back){st.pending=null;const [v,a]=d.back.split(':');return go(v,a)}
   if(d.cancel!==undefined){st.pending=null;return render()}
